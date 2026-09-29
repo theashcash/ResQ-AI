@@ -1,18 +1,29 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>ResQ-AI</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ResQ-AI | Emergency response planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>🚨 ResQ-AI — Emergency Response Planner</h1>
-    <div id="app">
-        <div id="form"></div>
-        <div id="map"></div>
-        <div id="results"></div>
-        <div id="edge-controls"></div>
-    </div>
-    <script type="module" src="src/main.js"></script>
+  <header class="top">
+    <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M12 2l8 3v6c0 5.2-3.4 9-8 11-4.6-2-8-5.8-8-11V5z" fill="#e63946"/><path d="M10.5 7h3v3.5H17v3h-3.5V17h-3v-3.5H7v-3h3.5z" fill="#fff"/></svg>
+    <div><h1>ResQ-AI</h1><p>Emergency response planner</p></div>
+    <button id="reset" type="button">Reset simulation</button>
+  </header>
+  <main id="app">
+    <aside class="rail"><div id="form"></div><div id="edge-controls"></div></aside>
+    <section id="stage">
+      <div id="map"></div>
+      <p class="hint">Select a road to change its traffic or block it.</p>
+      <div class="legend"><span><i class="t0"></i>Clear</span><span><i class="t1"></i>Moderate</span><span><i class="t2"></i>Heavy</span><span><i class="bk"></i>Blocked</span></div>
+    </section>
+    <aside class="rail"><div id="results"></div></aside>
+  </main>
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>

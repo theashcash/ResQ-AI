@@ -1,14 +1,22 @@
-/* style.css */
-
 :root {
-    --bg: #0f1115;
-    --panel-bg: #1a1d24;
-    --border: #2a2e37;
-    --text: #e8e9ec;
-    --text-muted: #9a9fab;
-    --accent: #3498db;
-    --danger: #e74c3c;
+    --ink: #0d1b2a;
+    --paper: #f3f5f7;
+    --line: #d5dbe3;
+    --mute: #5d6b7c;
+
+    --red: #e63946;
+    --amb: #0b7fb8;
+    --fire: #c85a10;
+    --pol: #5b4bc4;
+
+    --head: "Barlow Condensed", sans-serif;
+    --body: "Public Sans", system-ui, sans-serif;
 }
+
+
+/* ==========================================
+   GLOBAL
+   ========================================== */
 
 * {
     box-sizing: border-box;
@@ -16,196 +24,937 @@
 
 body {
     margin: 0;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--bg);
-    color: var(--text);
+    height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+
+    font: 14px/1.5 var(--body);
+
+    color: var(--ink);
+    background: var(--paper);
 }
 
-h1 {
-    padding: 16px 24px;
-    margin: 0;
-    font-size: 20px;
-    border-bottom: 1px solid var(--border);
+
+/* Keyboard accessibility */
+
+:focus-visible {
+    outline: 2px solid #4cc9f0;
+    outline-offset: 2px;
 }
 
-/* --- Layout: form + edge controls on the left, map in the
-   middle, results on the right --- */
 
-#app {
-    display: grid;
-    grid-template-columns: 230px 1fr 340px;
-    grid-template-rows: 1fr auto;
-    grid-template-areas:
-        "form map results"
-        "edge-controls map results";
-    gap: 16px;
-    padding: 16px;
-    height: calc(100vh - 57px);
-}
+/* ==========================================
+   TOP HEADER
+   ========================================== */
 
-#form           { grid-area: form; }
-#map            { grid-area: map; }
-#results        { grid-area: results; }
-#edge-controls  { grid-area: edge-controls; }
-
-#form, #results, #edge-controls {
-    background: var(--panel-bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    overflow-y: auto;
-}
-
-#map {
-    background: var(--panel-bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
+.top {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 12px;
+
+    padding: 10px 22px;
+
+    background: var(--ink);
+    color: #fff;
 }
+
+.top h1 {
+    margin: 0;
+
+    font: 600 26px/1 var(--head);
+
+    letter-spacing: 0.02em;
+}
+
+.top p {
+    margin: 2px 0 0;
+
+    font-size: 12px;
+    color: #8fa3b8;
+}
+
+
+/* Reset button */
+
+#reset {
+    margin-left: auto;
+
+    background: none;
+    color: #dbe6f2;
+
+    border: 1px solid #3a536d;
+    border-radius: 3px;
+
+    padding: 7px 14px;
+
+    font: 500 13px var(--body);
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s,
+        border-color 0.2s;
+}
+
+#reset:hover {
+    background: #16304a;
+    border-color: #4cc9f0;
+}
+
+
+/* ==========================================
+   MAIN APPLICATION GRID
+   ========================================== */
+
+#app {
+    flex: 1;
+    min-height: 0;
+
+    display: grid;
+
+    grid-template-columns: 300px 1fr 380px;
+}
+
+
+/* ==========================================
+   SIDE RAILS
+   ========================================== */
+
+.rail {
+    overflow-y: auto;
+    background: var(--paper);
+}
+
+.rail:first-child {
+    border-right: 1px solid var(--line);
+}
+
+.rail:last-child {
+    border-left: 1px solid var(--line);
+}
+
+
+/* ==========================================
+   PANELS
+   ========================================== */
+
+#form,
+#edge-controls,
+#results > * {
+    padding: 20px 22px;
+
+    border-bottom: 1px solid var(--line);
+}
+
+
+/* Hide empty edge controls */
 
 #edge-controls:empty {
     display: none;
 }
 
-/* --- Form --- */
+
+/* Empty results message */
+
+#results:empty::before {
+    content: "Report an incident to see the recommended response.";
+
+    display: block;
+
+    padding: 24px 22px;
+
+    color: var(--mute);
+}
+
+
+/* ==========================================
+   HEADINGS
+   ========================================== */
+
+h2 {
+    margin: 0 0 14px;
+
+    font: 600 24px/1.1 var(--head);
+}
+
+h3 {
+    margin: 0 0 10px;
+
+    font-size: 13px;
+    font-weight: 600;
+
+    color: var(--mute);
+}
+
+#edge-controls h3 {
+    color: var(--ink);
+    font-size: 15px;
+}
+
+
+/* ==========================================
+   INCIDENT FORM
+   ========================================== */
 
 #incident-form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+
+    gap: 13px;
 }
 
-#incident-form label {
+label {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    font-size: 13px;
-    color: var(--text-muted);
+
+    gap: 5px;
+
+    font-size: 12px;
+    font-weight: 500;
+
+    color: var(--mute);
 }
 
-#incident-form select,
-#incident-form input[type="number"] {
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px;
-    font-size: 14px;
-}
 
-#incident-form label:has(input[type="checkbox"]) {
+/* Checkbox label */
+
+label:has(input[type="checkbox"]) {
     flex-direction: row;
     align-items: center;
+
     gap: 8px;
+
+    color: var(--ink);
+    font-size: 14px;
 }
 
+
+/* Checkbox */
+
+input[type="checkbox"] {
+    accent-color: var(--red);
+
+    width: 16px;
+    height: 16px;
+}
+
+
+/* Selects + number inputs */
+
+select,
+input[type="number"] {
+    background: #fff;
+    color: var(--ink);
+
+    border: 1px solid var(--line);
+    border-radius: 3px;
+
+    padding: 9px 10px;
+
+    font: inherit;
+
+    transition:
+        border-color 0.2s,
+        box-shadow 0.2s;
+}
+
+select:focus,
+input[type="number"]:focus {
+    outline: 0;
+
+    border-color: var(--ink);
+
+    box-shadow: 0 0 0 3px #4cc9f044;
+}
+
+
+/* Submit button */
+
 #incident-form button {
-    margin-top: 8px;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    padding: 10px;
-    font-size: 14px;
-    font-weight: 600;
+    margin-top: 4px;
+
+    background: var(--ink);
+    color: #fff;
+
+    border: 0;
+    border-radius: 3px;
+
+    padding: 12px;
+
+    font: 600 14px var(--body);
+
     cursor: pointer;
+
+    transition:
+        background 0.2s,
+        transform 0.15s;
 }
 
 #incident-form button:hover {
-    opacity: 0.9;
+    background: #1b3a5a;
 }
 
-/* --- Results panel --- */
-
-#results h2 {
-    margin-top: 0;
-    font-size: 16px;
+#incident-form button:active {
+    transform: scale(0.98);
 }
 
-#results h3 {
-    font-size: 13px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 6px;
+
+/* ==========================================
+   MAP STAGE
+   ========================================== */
+
+#stage {
+    position: relative;
+
+    overflow: hidden;
+
+    background:
+        radial-gradient(
+            ellipse at 50% 40%,
+            #173049,
+            #0d1b2a 72%
+        );
+
+    animation: reveal 0.9s ease-out both;
 }
 
-.priority-badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: 12px;
-    color: #1a1d24;
-    margin-bottom: 12px;
+
+/* Grid overlay */
+
+#stage::before {
+    content: "";
+
+    position: absolute;
+    inset: 0;
+
+    background:
+        linear-gradient(
+            #ffffff09 1px,
+            transparent 1px
+        ) 0 0 / 40px 40px,
+
+        linear-gradient(
+            90deg,
+            #ffffff09 1px,
+            transparent 1px
+        ) 0 0 / 40px 40px;
 }
 
-.needs-list,
-.assignments-list,
-.shortage-list,
-.trace-list {
-    margin: 0 0 16px;
-    padding-left: 20px;
-    font-size: 13px;
-    line-height: 1.6;
+
+/* SVG map */
+
+#map {
+    position: absolute;
+
+    inset: 0;
 }
-
-.shortage-heading {
-    color: var(--danger);
-}
-
-.shortage-list {
-    color: var(--danger);
-}
-
-.trace-list li {
-    color: var(--text-muted);
-}
-
-.reroute-alert {
-    background: var(--danger);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    margin-bottom: 12px;
-    animation: fadeIn 0.2s ease-in;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-/* --- Edge controls popup --- */
-
-#edge-controls h3 {
-    color: var(--text);
-    text-transform: none;
-    font-size: 15px;
-}
-
-#edge-controls label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-}
-
-#edge-controls select {
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px;
-}
-
-/* --- Map --- */
 
 #map svg {
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
+}
+
+
+/* Map hint */
+
+.hint {
+    position: absolute;
+
+    top: 14px;
+    left: 18px;
+
+    margin: 0;
+
+    font-size: 12px;
+
+    color: #8fa3b8;
+}
+
+
+/* ==========================================
+   MAP LEGEND
+   ========================================== */
+
+.legend {
+    position: absolute;
+
+    left: 18px;
+    bottom: 14px;
+
+    display: flex;
+
+    gap: 16px;
+
+    font-size: 12px;
+
+    color: #b6c5d6;
+}
+
+.legend span {
+    display: flex;
+    align-items: center;
+
+    gap: 6px;
+}
+
+.legend i {
+    width: 20px;
+    height: 4px;
+
+    border-radius: 2px;
+}
+
+
+/* Traffic colors */
+
+.legend .t0,
+.road.t0 {
+    background: #2ec4b6;
+    stroke: #2ec4b6;
+}
+
+.legend .t1,
+.road.t1 {
+    background: #f4a259;
+    stroke: #f4a259;
+}
+
+.legend .t2,
+.road.t2 {
+    background: #e63946;
+    stroke: #e63946;
+}
+
+
+/* Blocked road legend */
+
+.legend .bk {
+    background:
+        repeating-linear-gradient(
+            90deg,
+            #6b7c93 0 3px,
+            transparent 3px 8px
+        );
+}
+
+
+/* ==========================================
+   ROAD / MAP ELEMENTS
+   ========================================== */
+
+.bed {
+    stroke: #0a1522;
+
+    stroke-width: 18;
+
+    stroke-linecap: round;
+
+    cursor: pointer;
+
+    transition: stroke 0.2s;
+}
+
+.bed:hover {
+    stroke: #1d3852;
+}
+
+
+.road {
+    stroke-width: 4;
+
+    stroke-linecap: round;
+
+    pointer-events: none;
+
+    transition: stroke 0.5s;
+}
+
+.road.blocked {
+    stroke: #6b7c93;
+
+    stroke-dasharray: 3 10;
+}
+
+
+/* ==========================================
+   NODES
+   ========================================== */
+
+.node {
+    fill: #0d1b2a;
+
+    stroke: #4a627d;
+
+    stroke-width: 2;
+
+    transition:
+        stroke 0.2s,
+        filter 0.2s;
+}
+
+.node-g:hover .node {
+    stroke: #4cc9f0;
+
+    filter:
+        drop-shadow(
+            0 0 6px #4cc9f0
+        );
+}
+
+
+.nid {
+    fill: #dbe6f2;
+
+    font: 600 15px var(--head);
+
+    text-anchor: middle;
+
+    dominant-baseline: central;
+
+    pointer-events: none;
+}
+
+
+/* ==========================================
+   STATIONS
+   ========================================== */
+
+.station rect {
+    fill: #0d1b2a;
+
+    stroke-width: 1.5;
+}
+
+
+/* ==========================================
+   ROUTES
+   ========================================== */
+
+.route {
+    fill: none;
+
+    stroke-width: 3;
+
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+    stroke-dasharray: 10 9;
+
+    animation: flow 0.7s linear infinite;
+
+    filter:
+        drop-shadow(
+            0 0 5px currentColor
+        );
+}
+
+
+/* ==========================================
+   INCIDENT MARKERS
+   ========================================== */
+
+.ripple {
+    fill: none;
+
+    stroke: #e63946;
+
+    stroke-width: 2;
+
+    transform-box: fill-box;
+
+    transform-origin: center;
+
+    animation: ripple 2.2s ease-out infinite;
+}
+
+.ripple.r2 {
+    animation-delay: 1.1s;
+}
+
+.inc-ring {
+    fill: none;
+
+    stroke: #e63946;
+
+    stroke-width: 2.5;
+}
+
+
+/* ==========================================
+   VEHICLES
+   ========================================== */
+
+.vehicle {
+    transition:
+        transform 0.9s cubic-bezier(
+            0.45,
+            0,
+            0.2,
+            1
+        ),
+        opacity 0.4s;
+}
+
+.vehicle:not(.active) {
+    opacity: 0.55;
+}
+
+.vehicle circle {
+    filter:
+        drop-shadow(
+            0 0 4px currentColor
+        );
+}
+
+
+/* ==========================================
+   RESULTS PANEL
+   ========================================== */
+
+.res-head {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+}
+
+.res-head h2 {
+    margin: 0;
+}
+
+
+/* Priority badge */
+
+.priority {
+    padding: 4px 12px;
+
+    border-radius: 999px;
+
+    font-size: 12px;
+    font-weight: 600;
+
+    color: #fff;
+
+    background: #6b7c93;
+}
+
+.p-CRITICAL {
+    background: var(--red);
+
+    animation: alert 1.8s infinite;
+}
+
+.p-HIGH {
+    background: #d9822b;
+}
+
+.p-MEDIUM {
+    background: #b58a00;
+}
+
+.p-LOW {
+    background: #2a9d8f;
+}
+
+
+/* ==========================================
+   RESOURCE COUNTERS
+   ========================================== */
+
+.needs {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, 1fr);
+}
+
+.need {
+    padding: 2px 0 2px 14px;
+
+    border-left: 1px solid var(--line);
+}
+
+.need:first-child {
+    padding-left: 0;
+
+    border-left: 0;
+}
+
+.need b {
+    display: block;
+
+    font: 600 40px/1 var(--head);
+}
+
+.need span {
+    font-size: 12px;
+
+    color: var(--mute);
+}
+
+
+/* Resource colors */
+
+.need.ambulance b {
+    color: var(--amb);
+}
+
+.need.fire_truck b {
+    color: var(--fire);
+}
+
+.need.police b {
+    color: var(--pol);
+}
+
+
+/* ==========================================
+   DISPATCHED UNITS
+   ========================================== */
+
+.unit {
+    display: grid;
+
+    grid-template-columns:
+        4px auto 1fr auto;
+
+    gap: 10px;
+
+    align-items: center;
+
+    padding: 8px 0;
+
+    font-size: 13px;
+}
+
+.unit .bar {
+    height: 22px;
+
+    border-radius: 2px;
+
+    background: var(--amb);
+}
+
+.unit.fire_truck .bar {
+    background: var(--fire);
+}
+
+.unit.police .bar {
+    background: var(--pol);
+}
+
+.unit em {
+    font-style: normal;
+
+    color: var(--mute);
+
+    font-variant-numeric: tabular-nums;
+}
+
+.chip {
+    font-weight: 500;
+}
+
+.sep {
+    margin: 0 4px;
+
+    color: var(--mute);
+}
+
+
+/* ==========================================
+   SHORTAGES
+   ========================================== */
+
+.shortage {
+    background: #fdecee;
+
+    color: #8f1d29;
+}
+
+.shortage h3 {
+    color: #8f1d29;
+}
+
+.shortage p {
+    margin: 2px 0;
+}
+
+
+/* ==========================================
+   MUTED TEXT
+   ========================================== */
+
+.muted {
+    margin: 0;
+
+    color: var(--mute);
+}
+
+
+/* ==========================================
+   REASONING TRACE
+   ========================================== */
+
+.trace {
+    margin: 0;
+
+    padding: 0;
+
+    list-style: none;
+
+    counter-reset: s;
+}
+
+.trace li {
+    counter-increment: s;
+
+    position: relative;
+
+    padding: 5px 0 5px 28px;
+
+    font-size: 13px;
+
+    color: var(--mute);
+}
+
+.trace li::before {
+    content: counter(s);
+
+    position: absolute;
+
+    left: 0;
+    top: 6px;
+
+    width: 18px;
+    height: 18px;
+
+    border-radius: 50%;
+
+    background: var(--ink);
+
+    color: #fff;
+
+    font-size: 11px;
+
+    line-height: 18px;
+
+    text-align: center;
+}
+
+
+/* ==========================================
+   REROUTE ALERT
+   ========================================== */
+
+.reroute-alert {
+    background: var(--ink);
+
+    color: #fff;
+
+    border-left: 4px solid #f4a259;
+
+    animation: slide 0.35s ease-out;
+}
+
+
+/* ==========================================
+   ANIMATIONS
+   ========================================== */
+
+@keyframes reveal {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+
+@keyframes flow {
+    to {
+        stroke-dashoffset: -19;
+    }
+}
+
+
+@keyframes ripple {
+    from {
+        transform: scale(0.5);
+        opacity: 0.9;
+    }
+
+    to {
+        transform: scale(3.2);
+        opacity: 0;
+    }
+}
+
+
+@keyframes alert {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 #e6394666;
+    }
+
+    50% {
+        box-shadow: 0 0 0 7px #e6394600;
+    }
+}
+
+
+@keyframes slide {
+    from {
+        transform: translateX(24px);
+
+        opacity: 0;
+    }
+
+    to {
+        transform: none;
+
+        opacity: 1;
+    }
+}
+
+
+/* ==========================================
+   RESPONSIVE LAYOUT
+   ========================================== */
+
+@media (max-width: 1000px) {
+
+    body {
+        height: auto;
+    }
+
+    #app {
+        grid-template-columns: 1fr;
+    }
+
+    #stage {
+        min-height: 460px;
+    }
+
+    .rail {
+        border: 0 !important;
+    }
+}
+
+
+/* ==========================================
+   REDUCED MOTION
+   ========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before {
+        animation: none !important;
+
+        transition: none !important;
+    }
 }

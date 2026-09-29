@@ -1,4 +1,6 @@
-// src/main.js
+// ==========================================
+// RESQ-AI MAIN APPLICATION
+// ==========================================
 
 import {
     inferResources
@@ -35,7 +37,10 @@ import {
     updateRoads,
     drawRoutes,
     drawVehicle,
-    removeVehicleMarker
+    removeVehicleMarker,
+    clearRoutes,
+    showIncident,
+    clearIncident
 } from "./ui/mapView.js";
 
 import {
@@ -60,6 +65,9 @@ const resultsContainer =
 const edgeControlsContainer =
     document.getElementById("edge-controls");
 
+const resetButton =
+    document.getElementById("reset");
+
 
 // ==========================================
 // APPLICATION STATE
@@ -70,6 +78,69 @@ let svg = null;
 let currentIncident = null;
 
 let currentAssignments = [];
+
+
+// ==========================================
+// HOME LOCATIONS
+// ==========================================
+//
+// Store the original station of every vehicle.
+// This lets Reset return vehicles home.
+
+const HOME = Object.fromEntries(
+    VEHICLES.map(vehicle => [
+        vehicle.id,
+        vehicle.node
+    ])
+);
+
+
+// ==========================================
+// RENDER ALL VEHICLES
+// ==========================================
+
+function drawAllVehicles() {
+
+    for (const vehicle of VEHICLES) {
+
+        drawVehicle(
+            svg,
+            vehicle
+        );
+    }
+}
+
+
+// ==========================================
+// RESET FLEET
+// ==========================================
+
+function resetFleet() {
+
+    resetAllVehicles();
+
+
+    // Return every vehicle to its
+    // original emergency station.
+
+    for (const vehicle of VEHICLES) {
+
+        vehicle.node =
+            HOME[vehicle.id];
+    }
+
+
+    // Clear visual state
+
+    clearRoutes(svg);
+
+    clearIncident(svg);
+
+
+    // Redraw vehicles
+
+    drawAllVehicles();
+}
 
 
 // ==========================================
@@ -95,19 +166,8 @@ populateNodeOptions(NODES);
 
 
 // ==========================================
-// DRAW INITIAL VEHICLES
+// INITIAL VEHICLE STATE
 // ==========================================
-
-function drawAllVehicles() {
-
-    for (const vehicle of VEHICLES) {
-
-        drawVehicle(
-            svg,
-            vehicle
-        );
-    }
-}
 
 drawAllVehicles();
 
@@ -116,41 +176,31 @@ drawAllVehicles();
 // INCIDENT SUBMISSION
 // ==========================================
 
-function handleIncidentSubmit(
-    incident
-) {
+function handleIncidentSubmit(incident) {
 
-    console.log(
-        "New incident:",
-        incident
+    // --------------------------------------
+    // Reset previous incident
+    // --------------------------------------
+
+    resetFleet();
+
+
+    currentIncident =
+        incident;
+
+
+    // --------------------------------------
+    // Show incident on map
+    // --------------------------------------
+
+    showIncident(
+        svg,
+        incident.node
     );
 
 
     // --------------------------------------
-    // Reset previous simulation state
-    // --------------------------------------
-
-    resetAllVehicles();
-
-    currentIncident = incident;
-
-
-    // Remove old vehicle markers/routes
-
-    for (const vehicle of VEHICLES) {
-
-        removeVehicleMarker(
-            svg,
-            vehicle.id
-        );
-    }
-
-
-    drawAllVehicles();
-
-
-    // --------------------------------------
-    // AI inference
+    // AI INFERENCE
     // --------------------------------------
 
     const plan =
@@ -160,13 +210,13 @@ function handleIncidentSubmit(
 
 
     console.log(
-        "Inference plan:",
+        "AI inference:",
         plan
     );
 
 
     // --------------------------------------
-    // Dispatch
+    // DISPATCH
     // --------------------------------------
 
     const result =
@@ -177,7 +227,7 @@ function handleIncidentSubmit(
 
 
     console.log(
-        "Dispatch result:",
+        "Dispatch:",
         result
     );
 
@@ -187,7 +237,7 @@ function handleIncidentSubmit(
 
 
     // --------------------------------------
-    // Show results
+    // Render response panel
     // --------------------------------------
 
     renderResults(
@@ -199,12 +249,12 @@ function handleIncidentSubmit(
 
 
     // --------------------------------------
-    // Highlight dispatched routes
+    // Draw routes
     // --------------------------------------
 
     drawRoutes(
         svg,
-        result.assignments
+        currentAssignments
     );
 
 
@@ -234,7 +284,7 @@ function handleIncidentSubmit(
 
 
 // ==========================================
-// ROAD CLICK
+// ROAD CLICK HANDLER
 // ==========================================
 
 function handleEdgeClick(edge) {
@@ -244,16 +294,47 @@ function handleEdgeClick(edge) {
         edge,
         () => {
 
-            // Update road appearance
+            // Update road colours
 
             updateRoads(svg);
 
 
-            // If a vehicle is currently travelling,
-            // check whether its next road is blocked.
+            // Check whether any active
+            // vehicle needs a new route.
 
             checkActiveVehicles();
         }
+    );
+}
+
+
+// ==========================================
+// SYNC ROUTE WITH VEHICLE
+// ==========================================
+//
+// As the vehicle moves, remove the nodes
+// it has already travelled from its route.
+
+function syncRoute(vehicle) {
+
+    const assignment =
+        currentAssignments.find(
+            a =>
+                a.vehicleId ===
+                vehicle.id
+        );
+
+
+    if (assignment) {
+
+        assignment.path =
+            [...vehicle.path];
+    }
+
+
+    drawRoutes(
+        svg,
+        currentAssignments
     );
 }
 
@@ -325,10 +406,6 @@ function checkActiveVehicles() {
                 [...newRoute.path];
 
 
-            // ----------------------------------
-            // Update assignment
-            // ----------------------------------
-
             const assignment =
                 currentAssignments.find(
                     a =>
@@ -348,7 +425,7 @@ function checkActiveVehicles() {
 
 
             // ----------------------------------
-            // Show alert
+            // Notify user
             // ----------------------------------
 
             showRerouteEvent(
@@ -359,14 +436,13 @@ function checkActiveVehicles() {
 
 
             // ----------------------------------
-            // Redraw routes
+            // Update map
             // ----------------------------------
 
             drawRoutes(
                 svg,
                 currentAssignments
             );
-
 
             drawVehicle(
                 svg,
@@ -381,9 +457,7 @@ function checkActiveVehicles() {
 // MOVE ONE VEHICLE
 // ==========================================
 
-function moveVehicle(
-    vehicle
-) {
+function moveVehicle(vehicle) {
 
     if (
         vehicle.status !==
@@ -392,6 +466,8 @@ function moveVehicle(
         return;
     }
 
+
+    // No remaining route
 
     if (
         !vehicle.path ||
@@ -402,7 +478,7 @@ function moveVehicle(
 
 
     // --------------------------------------
-    // Check road before moving
+    // Check for blocked next road
     // --------------------------------------
 
     if (
@@ -470,6 +546,7 @@ function moveVehicle(
             currentAssignments
         );
 
+
         drawVehicle(
             svg,
             vehicle
@@ -496,7 +573,7 @@ function moveVehicle(
 
 
     // --------------------------------------
-    // Update map
+    // Update visual position
     // --------------------------------------
 
     drawVehicle(
@@ -506,7 +583,16 @@ function moveVehicle(
 
 
     // --------------------------------------
-    // Check arrival
+    // Update displayed route
+    // --------------------------------------
+
+    syncRoute(
+        vehicle
+    );
+
+
+    // --------------------------------------
+    // Arrival
     // --------------------------------------
 
     if (
@@ -515,16 +601,33 @@ function moveVehicle(
         currentIncident.node
     ) {
 
+        console.log(
+            `${vehicle.id} arrived at ${vehicle.node}`
+        );
+
+
         vehicle.path = [
             vehicle.node
         ];
 
 
-        // Vehicle remains dispatched until
-        // reset/released by the simulation.
+        syncRoute(
+            vehicle
+        );
 
-        console.log(
-            `${vehicle.id} arrived at ${vehicle.node}`
+
+        // Vehicle is now free again.
+        // It remains at the incident location
+        // until Reset sends it home.
+
+        releaseVehicle(
+            vehicle.id
+        );
+
+
+        drawVehicle(
+            svg,
+            vehicle
         );
     }
 }
@@ -546,11 +649,60 @@ function moveAllVehicles() {
 
 
 // ==========================================
-// EXPOSE SIMULATION HELPERS
+// RESET BUTTON
+// ==========================================
+
+if (resetButton) {
+
+    resetButton.addEventListener(
+        "click",
+        () => {
+
+            resetFleet();
+
+            currentIncident =
+                null;
+
+            currentAssignments =
+                [];
+
+            resultsContainer.innerHTML =
+                "";
+
+            edgeControlsContainer.innerHTML =
+                "";
+
+            updateRoads(svg);
+        }
+    );
+}
+
+
+// ==========================================
+// AUTOMATIC SIMULATION
 // ==========================================
 //
-// These are useful while developing.
-// They can later be connected to UI buttons.
+// Every second, each dispatched vehicle
+// moves one graph edge.
+
+const simulationTimer =
+    setInterval(
+        moveAllVehicles,
+        1000
+    );
+
+
+// ==========================================
+// DEVELOPMENT API
+// ==========================================
+//
+// Useful from the browser console:
+//
+// RESQ.moveAllVehicles()
+// RESQ.checkActiveVehicles()
+// RESQ.reset()
+// RESQ.getVehicles()
+// RESQ.getEdges()
 
 window.RESQ = {
 
@@ -562,56 +714,41 @@ window.RESQ = {
 
     reset: () => {
 
-        resetAllVehicles();
+        resetFleet();
 
-        currentIncident = null;
+        currentIncident =
+            null;
 
-        currentAssignments = [];
+        currentAssignments =
+            [];
 
+        resultsContainer.innerHTML =
+            "";
 
-        for (const vehicle of VEHICLES) {
-
-            removeVehicleMarker(
-                svg,
-                vehicle.id
-            );
-        }
-
-
-        drawAllVehicles();
-
-        renderResults(
-            resultsContainer,
-            null,
-            {
-                priority: "MEDIUM",
-                needs: {
-                    ambulance: 0,
-                    police: 0,
-                    fire_truck: 0
-                },
-                trace: []
-            },
-            {
-                assignments: [],
-                shortages: []
-            }
-        );
-
+        edgeControlsContainer.innerHTML =
+            "";
 
         updateRoads(svg);
     },
 
     releaseVehicle,
 
-    getVehicles: () => VEHICLES,
+    getVehicles: () =>
+        VEHICLES,
 
-    getEdges: () => EDGES
+    getEdges: () =>
+        EDGES,
+
+    getIncident: () =>
+        currentIncident,
+
+    getAssignments: () =>
+        currentAssignments
 };
 
 
 // ==========================================
-// INITIAL MESSAGE
+// STARTUP
 // ==========================================
 
 console.log(
