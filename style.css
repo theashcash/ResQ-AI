@@ -1,0 +1,211 @@
+/* style.css */
+
+:root {
+    --bg: #0f1115;
+    --panel-bg: #1a1d24;
+    --border: #2a2e37;
+    --text: #e8e9ec;
+    --text-muted: #9a9fab;
+    --accent: #3498db;
+    --danger: #e74c3c;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+h1 {
+    padding: 16px 24px;
+    margin: 0;
+    font-size: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* --- Layout: form + edge controls on the left, map in the
+   middle, results on the right --- */
+
+#app {
+    display: grid;
+    grid-template-columns: 230px 1fr 340px;
+    grid-template-rows: 1fr auto;
+    grid-template-areas:
+        "form map results"
+        "edge-controls map results";
+    gap: 16px;
+    padding: 16px;
+    height: calc(100vh - 57px);
+}
+
+#form           { grid-area: form; }
+#map            { grid-area: map; }
+#results        { grid-area: results; }
+#edge-controls  { grid-area: edge-controls; }
+
+#form, #results, #edge-controls {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+#map {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#edge-controls:empty {
+    display: none;
+}
+
+/* --- Form --- */
+
+#incident-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#incident-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+#incident-form select,
+#incident-form input[type="number"] {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 14px;
+}
+
+#incident-form label:has(input[type="checkbox"]) {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+#incident-form button {
+    margin-top: 8px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#incident-form button:hover {
+    opacity: 0.9;
+}
+
+/* --- Results panel --- */
+
+#results h2 {
+    margin-top: 0;
+    font-size: 16px;
+}
+
+#results h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.priority-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 12px;
+    color: #1a1d24;
+    margin-bottom: 12px;
+}
+
+.needs-list,
+.assignments-list,
+.shortage-list,
+.trace-list {
+    margin: 0 0 16px;
+    padding-left: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.shortage-heading {
+    color: var(--danger);
+}
+
+.shortage-list {
+    color: var(--danger);
+}
+
+.trace-list li {
+    color: var(--text-muted);
+}
+
+.reroute-alert {
+    background: var(--danger);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Edge controls popup --- */
+
+#edge-controls h3 {
+    color: var(--text);
+    text-transform: none;
+    font-size: 15px;
+}
+
+#edge-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+#edge-controls select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px;
+}
+
+/* --- Map --- */
+
+#map svg {
+    max-width: 100%;
+    max-height: 100%;
+}

@@ -9,17 +9,28 @@ import { VEHICLES } from "../data/vehicles.js";
 // ==========================================
 //
 // Takes the `needs` object from inferResources()
-// (e.g. { ambulance: 2, police: 1, fire_truck: 1 })
-// and the incident's node, and decides which actual
-// vehicles to send.
+// and the incident's node.
+//
+// Example:
+// {
+//     ambulance: 2,
+//     police: 1,
+//     fire_truck: 1
+// }
 //
 // For each vehicle type:
-//   1. find available vehicles of that type
-//   2. run A* from each one to the incident
-//   3. send the cheapest N, where N = needs[type]
+//   1. Find available vehicles.
+//   2. Calculate an A* route for each.
+//   3. Remove unreachable vehicles.
+//   4. Sort by route cost.
+//   5. Dispatch the cheapest required vehicles.
 //
-// Returns the chosen assignments and any shortages
-// (needed but not available).
+// Returns:
+// {
+//     assignments: [...],
+//     shortages: [...]
+// }
+// ==========================================
 
 export function dispatch(needs, incidentNode) {
 
@@ -28,49 +39,154 @@ export function dispatch(needs, incidentNode) {
 
     for (const [type, count] of Object.entries(needs)) {
 
-        if (count <= 0) continue;
+        if (count <= 0) {
+            continue;
+        }
 
-        // Step 1: candidates of the right type, currently free
+
+        // ======================================
+        // 1. Find available vehicles
+        // ======================================
+
         const candidates = VEHICLES.filter(
-            v => v.type === type && v.status === "available"
+            vehicle =>
+                vehicle.type === type &&
+                vehicle.status === "available"
         );
 
-        // Step 2: route each candidate to the incident
-        const scored = candidates.map(v => {
-            const result = aStar(v.node, incidentNode);
-            return { vehicle: v, path: result.path, cost: result.cost };
+
+        // ======================================
+        // 2. Calculate route for each vehicle
+        // ======================================
+
+        const scored = candidates.map(vehicle => {
+
+            const result = aStar(
+                vehicle.node,
+                incidentNode
+            );
+
+            return {
+                vehicle,
+                path: result.path,
+                cost: result.cost
+            };
         });
 
-        // Drop any that can't reach the incident at all
-        const reachable = scored.filter(s => s.path !== null);
 
-        // Step 3: cheapest routes first
-        reachable.sort((a, b) => a.cost - b.cost);
+        // ======================================
+        // 3. Remove unreachable vehicles
+        // ======================================
 
-        const chosen = reachable.slice(0, count);
+        const reachable = scored.filter(
+            candidate => candidate.path !== null
+        );
 
-        for (const c of chosen) {
-            c.vehicle.status = "dispatched";
-            // Give the actual vehicle its route
-            c.vehicle.path = [...c.path];
+
+        // ======================================
+        // 4. Cheapest routes first
+        // ======================================
+
+        reachable.sort(
+            (a, b) => a.cost - b.cost
+        );
+
+
+        // ======================================
+        // 5. Select required number
+        // ======================================
+
+        const chosen = reachable.slice(
+            0,
+            count
+        );
+
+
+        // ======================================
+        // 6. Dispatch selected vehicles
+        // ======================================
+
+        for (const candidate of chosen) {
+
+            candidate.vehicle.status = "dispatched";
+
+            // Store the route directly on the
+            // actual vehicle object.
+
+            candidate.vehicle.path = [
+                ...candidate.path
+            ];
+
             assignments.push({
-                vehicleId: c.vehicle.id,
-                type: c.vehicle.type,
-                path: c.path,
-                cost: c.cost
+                vehicleId: candidate.vehicle.id,
+                type: candidate.vehicle.type,
+                path: [...candidate.path],
+                cost: candidate.cost
             });
         }
 
-        // Not enough available units of this type
+
+        // ======================================
+        // 7. Record shortages
+        // ======================================
+
         if (chosen.length < count) {
+
             shortages.push({
-                type: type,
+                type,
                 needed: count,
                 sent: chosen.length,
-                missing: count - chosen.length,
+                missing: count - chosen.length
             });
         }
     }
 
-    return { assignments, shortages };
+
+    return {
+        assignments,
+        shortages
+    };
+}
+
+
+// ==========================================
+// Release one vehicle
+// ==========================================
+//
+// Called when a vehicle finishes its job.
+// It becomes available for future incidents.
+// ==========================================
+
+export function releaseVehicle(vehicleId) {
+
+    const vehicle = VEHICLES.find(
+        vehicle => vehicle.id === vehicleId
+    );
+
+    if (!vehicle) {
+        return;
+    }
+
+    vehicle.status = "available";
+    vehicle.path = null;
+}
+
+
+// ==========================================
+// Reset entire fleet
+// ==========================================
+//
+// Useful for:
+// - Reset Simulation button
+// - Testing
+// - Running multiple incidents
+// ==========================================
+
+export function resetAllVehicles() {
+
+    for (const vehicle of VEHICLES) {
+
+        vehicle.status = "available";
+        vehicle.path = null;
+    }
 }

@@ -1,285 +1,623 @@
-import { inferResources } from "./engine/inference.js";
-import { dispatch } from "./engine/dispatch.js";
-import { needsReroute, reroute } from "./engine/reroute.js";
+// src/main.js
 
-import { EDGES } from "./data/city.js";
-import { VEHICLES } from "./data/vehicles.js";
+import {
+    inferResources
+} from "./engine/inference.js";
+
+import {
+    dispatch,
+    resetAllVehicles,
+    releaseVehicle
+} from "./engine/dispatch.js";
+
+import {
+    needsReroute,
+    reroute
+} from "./engine/reroute.js";
+
+import {
+    NODES,
+    EDGES
+} from "./data/city.js";
+
+import {
+    VEHICLES
+} from "./data/vehicles.js";
+
+import {
+    renderIncidentForm,
+    populateNodeOptions,
+    renderEdgeControls
+} from "./ui/controls.js";
+
+import {
+    renderMap,
+    updateRoads,
+    drawRoutes,
+    drawVehicle,
+    removeVehicleMarker
+} from "./ui/mapView.js";
+
+import {
+    renderResults,
+    showRerouteEvent
+} from "./ui/panel.js";
+
 
 // ==========================================
-// 1. CREATE INCIDENT
+// DOM ELEMENTS
 // ==========================================
 
-const incident = {
-    type: "accident",
-    severity: "high",
-    peopleInvolved: 6,
-    injured: 3,
-    fire: true
-};
+const formContainer =
+    document.getElementById("form");
 
-console.log("=================================");
-console.log("        RESQ-AI INCIDENT");
-console.log("=================================");
+const mapContainer =
+    document.getElementById("map");
 
-console.log("Incident:", incident);
+const resultsContainer =
+    document.getElementById("results");
+
+const edgeControlsContainer =
+    document.getElementById("edge-controls");
 
 
 // ==========================================
-// 2. AI INFERENCE
+// APPLICATION STATE
 // ==========================================
 
-const plan = inferResources(incident);
+let svg = null;
 
-console.log("\n--- AI INFERENCE ---");
+let currentIncident = null;
 
-console.log("Required resources:");
-console.log(plan.needs);
+let currentAssignments = [];
 
-console.log("Priority:", plan.priority);
 
-console.log("\nReasoning trace:");
+// ==========================================
+// INITIALISE MAP
+// ==========================================
 
-for (const reason of plan.trace) {
-    console.log("-", reason);
+svg = renderMap(
+    mapContainer,
+    handleEdgeClick
+);
+
+
+// ==========================================
+// INITIALISE INCIDENT FORM
+// ==========================================
+
+renderIncidentForm(
+    formContainer,
+    handleIncidentSubmit
+);
+
+populateNodeOptions(NODES);
+
+
+// ==========================================
+// DRAW INITIAL VEHICLES
+// ==========================================
+
+function drawAllVehicles() {
+
+    for (const vehicle of VEHICLES) {
+
+        drawVehicle(
+            svg,
+            vehicle
+        );
+    }
+}
+
+drawAllVehicles();
+
+
+// ==========================================
+// INCIDENT SUBMISSION
+// ==========================================
+
+function handleIncidentSubmit(
+    incident
+) {
+
+    console.log(
+        "New incident:",
+        incident
+    );
+
+
+    // --------------------------------------
+    // Reset previous simulation state
+    // --------------------------------------
+
+    resetAllVehicles();
+
+    currentIncident = incident;
+
+
+    // Remove old vehicle markers/routes
+
+    for (const vehicle of VEHICLES) {
+
+        removeVehicleMarker(
+            svg,
+            vehicle.id
+        );
+    }
+
+
+    drawAllVehicles();
+
+
+    // --------------------------------------
+    // AI inference
+    // --------------------------------------
+
+    const plan =
+        inferResources(
+            incident
+        );
+
+
+    console.log(
+        "Inference plan:",
+        plan
+    );
+
+
+    // --------------------------------------
+    // Dispatch
+    // --------------------------------------
+
+    const result =
+        dispatch(
+            plan.needs,
+            incident.node
+        );
+
+
+    console.log(
+        "Dispatch result:",
+        result
+    );
+
+
+    currentAssignments =
+        result.assignments;
+
+
+    // --------------------------------------
+    // Show results
+    // --------------------------------------
+
+    renderResults(
+        resultsContainer,
+        incident,
+        plan,
+        result
+    );
+
+
+    // --------------------------------------
+    // Highlight dispatched routes
+    // --------------------------------------
+
+    drawRoutes(
+        svg,
+        result.assignments
+    );
+
+
+    // --------------------------------------
+    // Draw dispatched vehicles
+    // --------------------------------------
+
+    for (const assignment of result.assignments) {
+
+        const vehicle =
+            VEHICLES.find(
+                v =>
+                    v.id ===
+                    assignment.vehicleId
+            );
+
+
+        if (vehicle) {
+
+            drawVehicle(
+                svg,
+                vehicle
+            );
+        }
+    }
 }
 
 
 // ==========================================
-// 3. DISPATCH VEHICLES
+// ROAD CLICK
 // ==========================================
 
-const incidentNode = "F";
+function handleEdgeClick(edge) {
 
-const result = dispatch(
-    plan.needs,
-    incidentNode
-);
+    renderEdgeControls(
+        edgeControlsContainer,
+        edge,
+        () => {
 
-console.log("\n--- DISPATCH ---");
+            // Update road appearance
 
-console.log("Assignments:");
+            updateRoads(svg);
 
-for (const assignment of result.assignments) {
-    console.log(
-        `${assignment.vehicleId} (${assignment.type})`,
-        "Path:",
-        assignment.path,
-        "Cost:",
-        assignment.cost
+
+            // If a vehicle is currently travelling,
+            // check whether its next road is blocked.
+
+            checkActiveVehicles();
+        }
     );
 }
 
-console.log("\nShortages:");
 
-if (result.shortages.length === 0) {
-    console.log("None");
-} else {
-    console.log(result.shortages);
+// ==========================================
+// CHECK ACTIVE VEHICLES
+// ==========================================
+
+function checkActiveVehicles() {
+
+    if (!currentIncident) {
+        return;
+    }
+
+
+    for (const vehicle of VEHICLES) {
+
+        if (
+            vehicle.status !==
+            "dispatched"
+        ) {
+            continue;
+        }
+
+
+        if (
+            !vehicle.path ||
+            vehicle.path.length < 2
+        ) {
+            continue;
+        }
+
+
+        if (
+            needsReroute(
+                vehicle,
+                EDGES
+            )
+        ) {
+
+            const newRoute =
+                reroute(
+                    vehicle,
+                    currentIncident.node
+                );
+
+
+            // ----------------------------------
+            // No route available
+            // ----------------------------------
+
+            if (newRoute === null) {
+
+                showRerouteEvent(
+                    resultsContainer,
+                    vehicle.id,
+                    ["NO ROUTE"]
+                );
+
+                continue;
+            }
+
+
+            // ----------------------------------
+            // Apply new route
+            // ----------------------------------
+
+            vehicle.path =
+                [...newRoute.path];
+
+
+            // ----------------------------------
+            // Update assignment
+            // ----------------------------------
+
+            const assignment =
+                currentAssignments.find(
+                    a =>
+                        a.vehicleId ===
+                        vehicle.id
+                );
+
+
+            if (assignment) {
+
+                assignment.path =
+                    [...newRoute.path];
+
+                assignment.cost =
+                    newRoute.cost;
+            }
+
+
+            // ----------------------------------
+            // Show alert
+            // ----------------------------------
+
+            showRerouteEvent(
+                resultsContainer,
+                vehicle.id,
+                newRoute.path
+            );
+
+
+            // ----------------------------------
+            // Redraw routes
+            // ----------------------------------
+
+            drawRoutes(
+                svg,
+                currentAssignments
+            );
+
+
+            drawVehicle(
+                svg,
+                vehicle
+            );
+        }
+    }
 }
 
 
 // ==========================================
-// 4. SIMULATE VEHICLE MOVEMENT
+// MOVE ONE VEHICLE
 // ==========================================
 
-function tick(vehicle, destinationNode) {
+function moveVehicle(
+    vehicle
+) {
 
-    // Vehicle has no route
-    if (!vehicle.path || vehicle.path.length === 0) {
-        console.log(`${vehicle.id} has no route.`);
+    if (
+        vehicle.status !==
+        "dispatched"
+    ) {
         return;
     }
 
-    // Vehicle has already reached destination
-    if (vehicle.node === destinationNode || vehicle.path.length === 1) {
-        console.log(`${vehicle.id} has reached ${destinationNode}.`);
+
+    if (
+        !vehicle.path ||
+        vehicle.path.length < 2
+    ) {
         return;
     }
 
 
-    // ======================================
-    // CHECK WHETHER NEXT ROAD IS BLOCKED
-    // ======================================
+    // --------------------------------------
+    // Check road before moving
+    // --------------------------------------
 
-    if (needsReroute(vehicle, EDGES)) {
-
-        console.log(
-            `${vehicle.id}: Road ahead is blocked.`
-        );
-
-        const newRoute = reroute(
+    if (
+        needsReroute(
             vehicle,
-            destinationNode
-        );
+            EDGES
+        )
+    ) {
+
+        if (!currentIncident) {
+            return;
+        }
 
 
-        // No alternative route
+        const newRoute =
+            reroute(
+                vehicle,
+                currentIncident.node
+            );
+
+
         if (newRoute === null) {
 
-            console.log(
-                `${vehicle.id} is stuck — no route available.`
+            showRerouteEvent(
+                resultsContainer,
+                vehicle.id,
+                ["NO ROUTE"]
             );
 
             return;
         }
 
 
-        // Apply new route
-        vehicle.path = [...newRoute.path];
+        vehicle.path =
+            [...newRoute.path];
 
-        console.log(
-            `${vehicle.id} rerouted:`,
-            vehicle.path
+
+        const assignment =
+            currentAssignments.find(
+                a =>
+                    a.vehicleId ===
+                    vehicle.id
+            );
+
+
+        if (assignment) {
+
+            assignment.path =
+                [...newRoute.path];
+
+            assignment.cost =
+                newRoute.cost;
+        }
+
+
+        showRerouteEvent(
+            resultsContainer,
+            vehicle.id,
+            newRoute.path
         );
+
+
+        drawRoutes(
+            svg,
+            currentAssignments
+        );
+
+        drawVehicle(
+            svg,
+            vehicle
+        );
+
 
         return;
     }
 
 
-    // ======================================
-    // MOVE TO NEXT NODE
-    // ======================================
+    // --------------------------------------
+    // Move to next node
+    // --------------------------------------
 
-    const nextNode = vehicle.path[1];
+    const nextNode =
+        vehicle.path[1];
 
-    vehicle.node = nextNode;
+
+    vehicle.node =
+        nextNode;
+
 
     vehicle.path.shift();
 
-    console.log(
-        `${vehicle.id} moved to ${vehicle.node}`
-    );
 
-    console.log(
-        "Remaining path:",
-        vehicle.path
-    );
-}
+    // --------------------------------------
+    // Update map
+    // --------------------------------------
 
-
-// ==========================================
-// 5. TEST VEHICLE MOVEMENT
-// ==========================================
-
-console.log("\n--- VEHICLE MOVEMENT ---");
-
-
-// Get the actual vehicle object
-// from the VEHICLES array
-
-const firstAssignment = result.assignments[0];
-
-if (firstAssignment) {
-
-    const vehicle = VEHICLES.find(
-        v => v.id === firstAssignment.vehicleId
+    drawVehicle(
+        svg,
+        vehicle
     );
 
 
-    if (vehicle) {
+    // --------------------------------------
+    // Check arrival
+    // --------------------------------------
 
-        // IMPORTANT:
-        // dispatch() returns the path,
-        // but the vehicle itself needs
-        // to know its path for movement.
+    if (
+        currentIncident &&
+        vehicle.node ===
+        currentIncident.node
+    ) {
 
         vehicle.path = [
-            ...firstAssignment.path
+            vehicle.node
         ];
 
 
-        console.log(
-            `\nStarting ${vehicle.id}`
-        );
+        // Vehicle remains dispatched until
+        // reset/released by the simulation.
 
         console.log(
-            "Starting node:",
-            vehicle.node
-        );
-
-        console.log(
-            "Route:",
-            vehicle.path
-        );
-
-
-        // ==================================
-        // SIMULATE MOVEMENT
-        // ==================================
-
-        while (
-            vehicle.node !== incidentNode &&
-            vehicle.path.length > 1
-        ) {
-
-            tick(
-                vehicle,
-                incidentNode
-            );
-        }
-
-
-        console.log(
-            `\n${vehicle.id} final node:`,
-            vehicle.node
+            `${vehicle.id} arrived at ${vehicle.node}`
         );
     }
 }
 
 
 // ==========================================
-// 6. FINAL STATUS
+// MOVE ALL VEHICLES
 // ==========================================
 
-console.log("\n=================================");
-console.log("          RESQ-AI COMPLETE");
-console.log("=================================");
+function moveAllVehicles() {
 
-console.log(
-    "Incident priority:",
-    plan.priority
-);
+    for (const vehicle of VEHICLES) {
 
-console.log(
-    "Resources required:",
-    plan.needs
-);
+        moveVehicle(
+            vehicle
+        );
+    }
+}
 
-console.log(
-    "Vehicles dispatched:",
-    result.assignments.length
-);
 
-console.log(
-    "Shortages:",
-    result.shortages.length
-);
-console.log("\n--- REROUTE TEST ---");
+// ==========================================
+// EXPOSE SIMULATION HELPERS
+// ==========================================
+//
+// These are useful while developing.
+// They can later be connected to UI buttons.
 
-const testVehicle = {
-    id: "TEST1",
-    type: "ambulance",
-    node: "E",
-    path: ["E", "F", "J"],
-    status: "dispatched"
+window.RESQ = {
+
+    moveVehicle,
+
+    moveAllVehicles,
+
+    checkActiveVehicles,
+
+    reset: () => {
+
+        resetAllVehicles();
+
+        currentIncident = null;
+
+        currentAssignments = [];
+
+
+        for (const vehicle of VEHICLES) {
+
+            removeVehicleMarker(
+                svg,
+                vehicle.id
+            );
+        }
+
+
+        drawAllVehicles();
+
+        renderResults(
+            resultsContainer,
+            null,
+            {
+                priority: "MEDIUM",
+                needs: {
+                    ambulance: 0,
+                    police: 0,
+                    fire_truck: 0
+                },
+                trace: []
+            },
+            {
+                assignments: [],
+                shortages: []
+            }
+        );
+
+
+        updateRoads(svg);
+    },
+
+    releaseVehicle,
+
+    getVehicles: () => VEHICLES,
+
+    getEdges: () => EDGES
 };
 
-console.log("Original route:", testVehicle.path);
 
-// Block E → F
-const edge = EDGES.find(
-    e =>
-        (e.from === "E" && e.to === "F") ||
-        (e.from === "F" && e.to === "E")
+// ==========================================
+// INITIAL MESSAGE
+// ==========================================
+
+console.log(
+    "🚨 RESQ-AI initialized."
 );
 
-edge.blocked = true;
-
-console.log("Road E-F blocked.");
-
-tick(testVehicle, "J");
-
-console.log("New route:", testVehicle.path);
-
-// Restore road
-edge.blocked = false;
+console.log(
+    "Submit an incident to begin."
+);
