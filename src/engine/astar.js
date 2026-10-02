@@ -1,194 +1,33 @@
-import { NODES, EDGES } from "../data/city.js";
+// src/engine/astar.js - A* on the real road graph. Cost = estimated travel time in seconds.
+import { MinHeap } from "./heap.js";
+import { edgeTime } from "./graph.js";
 
+// One best-first search used by both A* (useHeuristic = true) and the Dijkstra baseline (false).
+export function search(graph, start, goal, useHeuristic = true) {
+  const N = graph.nodes, gs = N[goal];
+  // h(n) = straight-line metres * fastest possible seconds per metre -> never overestimates
+  const h = n => useHeuristic ? Math.hypot(N[n].x - gs.x, N[n].y - gs.y) * graph.minSecPerM : 0;
+  const g = { [start]: 0 }, prev = {}, closed = new Set(), open = new MinHeap();
+  let explored = 0;                                       // nodes expanded, for the A* vs Dijkstra comparison
+  open.push(h(start), start);
 
-// ==========================================
-// Find all roads connected to a node
-// ==========================================
-
-function getNeighbors(node) {
-
-    const neighbors = [];
-
-    for (const edge of EDGES) {
-
-        // A -> B
-        if (edge.from === node) {
-            neighbors.push({
-                node: edge.to,
-                edge: edge
-            });
-        }
-
-        // B -> A
-        else if (edge.to === node) {
-            neighbors.push({
-                node: edge.from,
-                edge: edge
-            });
-        }
+  while (open.size) {
+    const cur = open.pop();
+    if (closed.has(cur)) continue;                        // stale heap entry
+    closed.add(cur); explored++;
+    if (cur === goal) {                                   // rebuild the route backwards
+      const path = [goal], edges = [];
+      for (let n = goal; n !== start; n = prev[n].from) { edges.unshift(prev[n].edge); path.unshift(prev[n].from); }
+      return { path, edges, cost: g[goal], explored };
     }
-
-    return neighbors;
-}
-
-
-// ==========================================
-// Calculate cost of travelling through an edge
-// ==========================================
-
-export function edgeCost(edge) {
-
-    // Traffic increases travel cost.
-    //
-    // 0 → normal
-    // 1 → medium
-    // 2 → heavy
-
-    const trafficMultiplier = 1 + (edge.traffic * 0.5);
-
-    return edge.dist * trafficMultiplier;
-}
-
-
-// ==========================================
-// Heuristic function
-// ==========================================
-//
-// A* needs an estimate of the remaining distance.
-//
-// We use Euclidean distance:
-//
-// sqrt((x2-x1)^2 + (y2-y1)^2)
-
-export function heuristic(nodeA, nodeB) {
-
-    const a = NODES[nodeA];
-    const b = NODES[nodeB];
-
-    const dx = a.x - b.x;
-    const dy = a.y - b.y;
-
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-
-// ==========================================
-// A* SEARCH
-// ==========================================
-
-export function aStar(start, goal) {
-
-    // Nodes that still need to be explored
-    const openSet = new Set([start]);
-
-    // Where each node came from
-    const cameFrom = {};
-
-    // Cost from start → current node
-    const gScore = {};
-
-    // Estimated total cost
-    const fScore = {};
-
-
-    // Initially all costs are infinity
-    for (const node of Object.keys(NODES)) {
-        gScore[node] = Infinity;
-        fScore[node] = Infinity;
+    for (const { to, edge } of graph.adj[cur]) {
+      const t = edgeTime(edge);
+      if (t === Infinity || closed.has(to)) continue;     // blocked road or already settled
+      const ng = g[cur] + t;
+      if (ng < (g[to] ?? Infinity)) { g[to] = ng; prev[to] = { from: cur, edge }; open.push(ng + h(to), to); }
     }
-
-
-    // Starting node has cost 0
-    gScore[start] = 0;
-
-    fScore[start] = heuristic(start, goal);
-
-
-    // ======================================
-    // Main A* loop
-    // ======================================
-
-    while (openSet.size > 0) {
-
-        // Find node with smallest fScore
-
-        let current = null;
-
-        for (const node of openSet) {
-
-            if (
-                current === null ||
-                fScore[node] < fScore[current]
-            ) {
-                current = node;
-            }
-        }
-
-
-        // Goal reached
-        if (current === goal) {
-
-            const path = [];
-
-            let node = current;
-
-            while (node !== undefined) {
-
-                path.unshift(node);
-
-                node = cameFrom[node];
-            }
-
-            return {
-                path: path,
-                cost: gScore[goal]
-            };
-        }
-
-
-        // Remove current node from unexplored set
-        openSet.delete(current);
-
-
-        // Examine neighboring nodes
-        const neighbors = getNeighbors(current);
-
-
-        for (const { node: neighbor, edge } of neighbors) {
-
-            // Ignore blocked roads
-            if (edge.blocked) {
-                continue;
-            }
-
-
-            // Cost of travelling current → neighbor
-            const travelCost = edgeCost(edge);
-
-
-            const tentativeG =
-                gScore[current] + travelCost;
-
-
-            // Is this route better?
-            if (tentativeG < gScore[neighbor]) {
-
-                cameFrom[neighbor] = current;
-
-                gScore[neighbor] = tentativeG;
-
-                fScore[neighbor] =
-                    tentativeG + heuristic(neighbor, goal);
-
-                openSet.add(neighbor);
-            }
-        }
-    }
-
-
-    // No route exists
-    return {
-        path: null,
-        cost: Infinity
-    };
+  }
+  return { path: null, edges: [], cost: Infinity, explored };  // unreachable
 }
+
+export const aStar = (graph, start, goal) => search(graph, start, goal, true);

@@ -1,154 +1,39 @@
-// tests/astar.test.js
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { buildGraph, edgeTime } from "../src/engine/graph.js";
+import { aStar } from "../src/engine/astar.js";
+import { dijkstra } from "../src/engine/baseline.js";
 
-import {
-  aStar,
-  edgeCost,
-  heuristic
-} from "../src/engine/astar.js";
+const graph = buildGraph(JSON.parse(readFileSync(new URL("../src/data/city.json", import.meta.url))));
+const ids = Object.keys(graph.nodes);
+let seed = 42; const rnd = n => ids[(seed = (seed * 1664525 + 1013904223) >>> 0) % n];   // repeatable pairs
+const pairs = Array.from({ length: 150 }, () => [rnd(ids.length), rnd(ids.length)]);
 
-import { EDGES } from "../src/data/city.js";
-
-
-// ==========================================
-// TEST 1
-// Direct route with no traffic
-// ==========================================
-
-test("finds a direct route with no traffic", () => {
-
-  const r = aStar("A", "B");
-
-  assert.deepEqual(
-    r.path,
-    ["A", "B"]
-  );
-
-  assert.equal(
-    r.cost,
-    200
-  );
-});
-
-
-// ==========================================
-// TEST 2
-// Traffic increases edge cost
-// ==========================================
-
-test("heavy traffic increases route cost", () => {
-
-  const normalEdge = {
-    from: "E",
-    to: "F",
-    dist: 200,
-    traffic: 0,
-    blocked: false
-  };
-
-  const heavyTrafficEdge = {
-    from: "E",
-    to: "F",
-    dist: 200,
-    traffic: 2,
-    blocked: false
-  };
-
-  const normalCost = edgeCost(normalEdge);
-  const heavyCost = edgeCost(heavyTrafficEdge);
-
-  assert.equal(normalCost, 200);
-  assert.equal(heavyCost, 400);
-
-  assert.ok(
-    heavyCost > normalCost
-  );
-});
-
-
-// ==========================================
-// TEST 3
-// A* finds a route
-// ==========================================
-
-test("finds a route from E to J", () => {
-
-  const r = aStar("E", "J");
-
-  assert.ok(
-    r.path !== null
-  );
-
-  assert.ok(
-    r.path.length > 0
-  );
-
-  assert.ok(
-    r.cost < Infinity
-  );
-
-});
-
-
-// ==========================================
-// TEST 4
-// Blocked road must not be used
-// ==========================================
-
-test("blocked road is never used", () => {
-
-  const edge = EDGES.find(
-    e => e.from === "E" && e.to === "F"
-  );
-
-  // Make sure we actually found the edge
-  assert.ok(edge);
-
-  // Temporarily block it
-  edge.blocked = true;
-
-  try {
-
-    const r = aStar("E", "F");
-
-    // There should still be another route
-    assert.ok(r.path !== null);
-
-    // The direct E → F path should not be used
-    assert.ok(
-      r.path.length > 2
-    );
-
-    // Make sure E → F is not present as a direct step
-    assert.notDeepEqual(
-      r.path,
-      ["E", "F"]
-    );
-
-  } finally {
-
-    // ALWAYS restore the graph
-    edge.blocked = false;
-
+test("A* finds the same optimal cost as Dijkstra on 150 random pairs", () => {
+  let a = 0, d = 0;
+  for (const [s, t] of pairs) {
+    const ra = aStar(graph, s, t), rd = dijkstra(graph, s, t);
+    assert.ok(Math.abs(ra.cost - rd.cost) < 1e-6, `${s}->${t}: ${ra.cost} vs ${rd.cost}`);
+    a += ra.explored; d += rd.explored;
   }
-
+  assert.ok(a < d, "A* should expand fewer nodes overall");
 });
 
+test("route is continuous: each edge joins consecutive junctions", () => {
+  const r = aStar(graph, pairs[0][0], pairs[0][1]);
+  r.edges.forEach((e, i) => assert.ok([e.from, e.to].includes(r.path[i]) && [e.from, e.to].includes(r.path[i + 1])));
+});
 
-// ==========================================
-// TEST 5
-// Heuristic returns a valid distance
-// ==========================================
-
-test("heuristic calculates straight-line distance", () => {
-
-  const h = heuristic("A", "B");
-
-  assert.equal(
-    h,
-    200
-  );
-
+test("blocked road is never used, and heavy traffic raises the cost", () => {
+  const [s, t] = pairs.find(([s, t]) => aStar(graph, s, t).edges.length > 10);
+  const base = aStar(graph, s, t), mid = base.edges[Math.floor(base.edges.length / 2)];
+  mid.blocked = true;
+  try {
+    const r = aStar(graph, s, t);
+    assert.ok(r.path && !r.edges.includes(mid) && r.cost >= base.cost);
+  } finally { mid.blocked = false; }
+  assert.equal(edgeTime({ ...mid, blocked: true }), Infinity);
+  mid.traffic = 2;
+  try { assert.ok(aStar(graph, s, t).cost >= base.cost); } finally { mid.traffic = 0; }
 });
