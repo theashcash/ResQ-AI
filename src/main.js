@@ -1,4 +1,3 @@
-
 // src/main.js
 
 import {
@@ -41,6 +40,8 @@ import {
 
 import {
   renderResults,
+  renderPlanReview,
+  renderFleetDashboard,
   showRerouteEvent
 } from "./ui/panel.js";
 
@@ -62,7 +63,6 @@ if (!response.ok) {
 const city = await response.json();
 const graph = buildGraph(city);
 
-// Each simulation starts with a fresh copy.
 const fleet = structuredClone(VEHICLES);
 
 const mapEl = document.getElementById("map");
@@ -75,6 +75,10 @@ const hint = document.querySelector(".hint");
 let svg = null;
 let selectedEdge = null;
 let tickTimer = null;
+
+// Incident currently awaiting confirmation.
+let pendingIncident = null;
+let pendingPlan = null;
 
 // ========================================
 // MAP PAINTING
@@ -189,6 +193,110 @@ function updateResults(incident, plan, result) {
 }
 
 // ========================================
+// FLEET DASHBOARD
+// ========================================
+
+function updateFleetDashboard() {
+  const dashboard = document.getElementById("fleet-dashboard");
+
+  if (dashboard) {
+    renderFleetDashboard(dashboard, fleet);
+  }
+}
+
+// ========================================
+// PLAN REVIEW
+// ========================================
+
+function showPlanReview(incident, plan) {
+  // Preview on a separate copy. Real vehicles remain untouched.
+  const previewFleet = structuredClone(fleet);
+
+  const preview = dispatch(
+    graph,
+    plan.needs,
+    incident.node,
+    previewFleet
+  );
+
+  pendingIncident = incident;
+  pendingPlan = plan;
+
+  renderPlanReview(
+    resultsEl,
+    incident,
+    plan,
+    preview
+  );
+
+  // The buttons are created by renderPlanReview.
+  document
+    .getElementById("confirm-dispatch")
+    ?.addEventListener("click", confirmDispatch);
+
+  document
+    .getElementById("cancel-plan")
+    ?.addEventListener("click", cancelPlan);
+}
+
+// ========================================
+// CONFIRM DISPATCH
+// ========================================
+
+function confirmDispatch() {
+  if (!pendingIncident || !pendingPlan) return;
+
+  const incident = pendingIncident;
+  const plan = pendingPlan;
+
+  // Clear pending state before starting the simulation.
+  pendingIncident = null;
+  pendingPlan = null;
+
+  // Dispatch the real fleet only after confirmation.
+  const result = dispatch(
+    graph,
+    plan.needs,
+    incident.node,
+    fleet
+  );
+
+  updateResults(
+    incident,
+    plan,
+    result
+  );
+
+  showIncident(
+    svg,
+    graph,
+    incident.node
+  );
+
+  paint();
+  updateFleetDashboard();
+  startSimulation();
+}
+
+// ========================================
+// CANCEL PLAN
+// ========================================
+
+function cancelPlan() {
+  pendingIncident = null;
+  pendingPlan = null;
+
+  resultsEl.innerHTML = `
+    <p class="muted">
+      Dispatch cancelled. No vehicles were sent.
+    </p>
+  `;
+
+  paint();
+  updateFleetDashboard();
+}
+
+// ========================================
 // SIMULATION
 // ========================================
 
@@ -230,7 +338,10 @@ function startSimulation() {
       }
     }
 
-    if (moved) paint();
+    if (moved) {
+      paint();
+      updateFleetDashboard();
+    }
 
     const stillMoving = fleet.some(
       vehicle => vehicle.status === "dispatched"
@@ -304,6 +415,7 @@ function onGraphChange(edge) {
   }
 
   paint();
+  updateFleetDashboard();
 }
 
 // ========================================
@@ -320,27 +432,23 @@ renderIncidentForm(
       return;
     }
 
+    // Stop any previous simulation.
     stopSimulation();
+
+    // Keep the existing one-incident-at-a-time behavior.
     resetAllVehicles(fleet);
 
-    // Compare all available vehicles before dispatch.
+    pendingIncident = null;
+    pendingPlan = null;
+
     debugVehicles(incident.node);
 
-    // Infer resource requirements.
     const plan = inferResources(incident);
 
-    // Dispatch the required vehicles.
-    const result = dispatch(
-      graph,
-      plan.needs,
-      incident.node,
-      fleet
-    );
-
-    updateResults(
+    // Show a review screen instead of dispatching immediately.
+    showPlanReview(
       incident,
-      plan,
-      result
+      plan
     );
 
     showIncident(
@@ -350,7 +458,7 @@ renderIncidentForm(
     );
 
     paint();
-    startSimulation();
+    updateFleetDashboard();
   }
 );
 
@@ -406,8 +514,6 @@ svg = renderMap(
 // LABELS
 // ========================================
 
-// Facility labels are drawn directly from graph.facilities.
-// No labels.json file is needed.
 const places = [];
 
 drawLabels(
@@ -454,6 +560,9 @@ resetBtn?.addEventListener(
   () => {
     stopSimulation();
 
+    pendingIncident = null;
+    pendingPlan = null;
+
     resetAllVehicles(fleet);
 
     for (const edge of graph.edges) {
@@ -473,6 +582,7 @@ resetBtn?.addEventListener(
     );
 
     paint();
+    updateFleetDashboard();
 
     resultsEl.innerHTML = "";
   }
@@ -483,3 +593,4 @@ resetBtn?.addEventListener(
 // ========================================
 
 paint();
+updateFleetDashboard();

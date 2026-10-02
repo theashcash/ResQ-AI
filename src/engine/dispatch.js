@@ -1,13 +1,13 @@
-
 // src/engine/dispatch.js
 
 import { aStar } from "./astar.js";
 
-// Dispatch the cheapest available vehicles of each required type.
-// Shortfalls are reported if there are not enough reachable vehicles.
-export function dispatch(graph, needs, incidentNode, vehicles) {
+// Calculate the cheapest available vehicle assignments
+// without modifying the fleet.
+export function previewDispatch(graph, needs, incidentNode, vehicles) {
   const assignments = [];
   const shortages = [];
+  const reserved = new Set();
 
   for (const [type, count] of Object.entries(needs)) {
     if (count <= 0) continue;
@@ -16,7 +16,8 @@ export function dispatch(graph, needs, incidentNode, vehicles) {
       .filter(
         (vehicle) =>
           vehicle.type === type &&
-          vehicle.status === "available"
+          vehicle.status === "available" &&
+          !reserved.has(vehicle.id)
       )
       .map((vehicle) => {
         const result = aStar(
@@ -36,11 +37,7 @@ export function dispatch(graph, needs, incidentNode, vehicles) {
 
     for (const candidate of chosen) {
       const vehicle = candidate.vehicle;
-
-      vehicle.status = "dispatched";
-      vehicle.path = [...candidate.path];
-      vehicle.edges = [...candidate.edges];
-      vehicle.destination = incidentNode;
+      reserved.add(vehicle.id);
 
       assignments.push({
         vehicleId: vehicle.id,
@@ -49,28 +46,96 @@ export function dispatch(graph, needs, incidentNode, vehicles) {
         path: [...candidate.path],
         edges: [...candidate.edges],
         cost: candidate.cost,
-        explored: candidate.explored,
+        explored: candidate.explored
       });
     }
+
     console.table(
-      scored.map(candidate => ({
+      scored.map((candidate) => ({
         vehicle: candidate.vehicle.id,
         start: candidate.vehicle.node,
         cost: candidate.cost,
         reachable: candidate.path !== null
       }))
     );
+
     if (chosen.length < count) {
       shortages.push({
         type,
         needed: count,
         sent: chosen.length,
-        missing: count - chosen.length,
+        missing: count - chosen.length
       });
     }
   }
 
-  return { assignments, shortages };
+  return {
+    assignments,
+    shortages,
+    incidentNode
+  };
+}
+
+// Apply a previously reviewed plan to the fleet.
+export function confirmDispatch(plan, vehicles) {
+  const assignments = [];
+  const shortages = [...plan.shortages];
+
+  for (const proposed of plan.assignments) {
+    const vehicle = vehicles.find(
+      (v) => v.id === proposed.vehicleId
+    );
+
+    // Ensure the vehicle has not changed since preview.
+    if (
+      !vehicle ||
+      vehicle.status !== "available" ||
+      vehicle.node !== proposed.from
+    ) {
+      let shortage = shortages.find(
+        (s) => s.type === proposed.type
+      );
+
+      if (!shortage) {
+        shortage = {
+          type: proposed.type,
+          needed: 0,
+          sent: 0,
+          missing: 0
+        };
+        shortages.push(shortage);
+      }
+
+      shortage.needed += 1;
+      shortage.missing += 1;
+      continue;
+    }
+
+    vehicle.status = "dispatched";
+    vehicle.path = [...proposed.path];
+    vehicle.edges = [...proposed.edges];
+    vehicle.destination = plan.incidentNode;
+
+    assignments.push(proposed);
+  }
+
+  return {
+    assignments,
+    shortages
+  };
+}
+
+// Keep the original immediate-dispatch API.
+// Existing main.js can continue using this function.
+export function dispatch(graph, needs, incidentNode, vehicles) {
+  const plan = previewDispatch(
+    graph,
+    needs,
+    incidentNode,
+    vehicles
+  );
+
+  return confirmDispatch(plan, vehicles);
 }
 
 // Release a dispatched vehicle and return it to its home node.

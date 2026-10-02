@@ -1127,3 +1127,51 @@ input[type="number"]:focus {
     grid-template-columns: 1fr;
   }
 }
+/* Confirm and Cancel buttons */
+
+#confirm-dispatch,
+#cancel-plan {
+    padding: 11px 18px;
+    border-radius: 6px;
+    font: 600 13px var(--body);
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.15s ease;
+}
+
+/* Confirm Dispatch */
+#confirm-dispatch {
+    background: var(--ink);
+    color: #fff;
+    border: 1px solid var(--ink);
+}
+
+#confirm-dispatch:hover {
+    background: #1b3a5a;
+    border-color: #1b3a5a;
+}
+
+/* Cancel */
+#cancel-plan {
+    background: #fff;
+    color: #596575;
+    border: 1px solid var(--line);
+}
+
+#cancel-plan:hover {
+    background: #fcecee;
+    color: #b42332;
+    border-color: #e8a5ad;
+}
+
+/* Press feedback */
+#confirm-dispatch:active,
+#cancel-plan:active {
+    transform: scale(0.98);
+}
+
+/* Button layout */
+.plan-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
