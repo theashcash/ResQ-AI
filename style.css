@@ -476,6 +476,10 @@ input[type="number"]:focus {
     stroke-dasharray: 3 10;
 }
 
+.edge-sel {
+    stroke: #ffe08a;
+}
+
 
 /* ==========================================
    NODES

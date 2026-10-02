@@ -16,7 +16,10 @@ function text(parent, s, x, y, attrs) {
 
 // places = contents of labels.json (optional): [{ name, kind: "place" | "landmark", x, y }]
 export function drawLabels(svg, graph, places = []) {
+  svg.querySelector("#labels")?.remove();
   const g = document.createElementNS(NS, "g");
+  g.id = "labels";
+  g.setAttribute("pointer-events", "none");
   svg.appendChild(g);
   for (const p of places) {                                    // area names and landmarks (quieter than facilities)
     if (p.kind === "landmark") {

@@ -1,61 +1,36 @@
 // src/engine/reroute.js
-
 import { aStar } from "./astar.js";
 
-
-// ==========================================
-// Reroute a vehicle mid-journey
-// ==========================================
-//
-// Called when the environment changes (a road on the
-// vehicle's remaining path becomes blocked or its
-// traffic gets worse). Re-runs A* from the vehicle's
-// CURRENT node — not the original start — to the
-// same destination.
-//
-// `vehicle` needs { node, path } where `node` is where
-// it is right now and `path` is the route it was following.
-// Returns a new { path, cost }, or null if no route exists.
-
-export function reroute(vehicle, destinationNode) {
-
-    const result = aStar(vehicle.node, destinationNode);
-
-    if (result.path === null) {
-        // No route at all — vehicle is stuck, caller should
-        // decide what to do (report it, try a different vehicle, etc.)
-        return null;
-    }
-
-    return {
-        path: result.path,
-        cost: result.cost,
-    };
+function edgeBetween(edges, a, b) {
+  return edges.find(e =>
+    (e.from === a && e.to === b) || (e.to === a && e.from === b)
+  );
 }
 
-
-// ==========================================
-// Check whether a vehicle's current path is still valid
-// ==========================================
-//
-// Call this whenever the graph changes. It looks at the
-// NEXT edge the vehicle is about to travel and checks if
-// it's now blocked. Doesn't check the whole path — only
-// the immediate next step, since that's the only one that
-// matters right now (the road could change again later).
-
-export function needsReroute(vehicle, EDGES) {
-
-    if (!vehicle.path || vehicle.path.length < 2) {
-        return false; // already arrived, or no path
+export function pathUsesEdge(path, edge) {
+  if (!path || path.length < 2) return false;
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1];
+    if ((edge.from === a && edge.to === b) || (edge.to === a && edge.from === b)) {
+      return true;
     }
+  }
+  return false;
+}
 
-    const nextNode = vehicle.path[1];
+// Re-run A* from the vehicle's current node to the same destination.
+export function reroute(graph, vehicle, destinationNode) {
+  const result = aStar(graph, vehicle.node, destinationNode);
+  if (result.path === null) return null;
+  return { path: result.path, edges: result.edges, cost: result.cost };
+}
 
-    const edge = EDGES.find(e =>
-        (e.from === vehicle.node && e.to === nextNode) ||
-        (e.to === vehicle.node && e.from === nextNode)
-    );
-
-    return edge ? edge.blocked : true; // treat a missing edge as unsafe too
+// True if any remaining hop is blocked or no longer exists.
+export function needsReroute(vehicle, edges) {
+  if (!vehicle.path || vehicle.path.length < 2) return false;
+  for (let i = 0; i < vehicle.path.length - 1; i++) {
+    const edge = edgeBetween(edges, vehicle.path[i], vehicle.path[i + 1]);
+    if (!edge || edge.blocked) return true;
+  }
+  return false;
 }

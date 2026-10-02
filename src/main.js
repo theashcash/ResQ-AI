@@ -1,68 +1,485 @@
-// src/main.js
-// Load the real map, click two points, and compare A* with Dijkstra.
 
-import { buildGraph, nearestNode, routePoints } from "./engine/graph.js";
+// src/main.js
+
+import {
+  buildGraph,
+  nearestNode,
+  nearestEdge,
+  routePoints
+} from "./engine/graph.js";
+
 import { aStar } from "./engine/astar.js";
 import { dijkstra } from "./engine/baseline.js";
-import { renderMap, showRoute, showMarks } from "./ui/mapView.js";
+import { inferResources } from "./engine/inference.js";
+
+import {
+  dispatch,
+  resetAllVehicles
+} from "./engine/dispatch.js";
+
+import {
+  reroute,
+  needsReroute,
+  pathUsesEdge
+} from "./engine/reroute.js";
+
+import { VEHICLES } from "./data/vehicles.js";
+
+import {
+  renderMap,
+  showRoutes,
+  showIncident,
+  showVehicles,
+  showEdgeOverrides
+} from "./ui/mapView.js";
+
+import {
+  renderIncidentForm,
+  setIncidentLocation,
+  renderEdgeControls
+} from "./ui/controls.js";
+
+import {
+  renderResults,
+  showRerouteEvent
+} from "./ui/panel.js";
+
 import { drawLabels } from "./ui/labels.js";
 import { enableLabelEditor } from "./ui/labelEditor.js";
 
-// Load graph and UI elements
-const graph = buildGraph(await (await fetch("src/data/city.json")).json());
-const out = document.getElementById("results");
+// ========================================
+// INITIALIZATION
+// ========================================
 
-const say = html => {
-  out.innerHTML = `<section><h3>Route test</h3>${html}</section>`;
-};
+const response = await fetch("./src/data/city.json");
 
-let picks = [];
-
-// Load labels
-const places = await fetch("src/data/labels.json")
-  .then(r => (r.ok ? r.json() : []))
-  .catch(() => []);
-
-// Render the map
-const svg = renderMap(document.getElementById("map"), graph, (x, y) => {
-  if (picks.length === 2) picks = [];
-
-  picks.push(nearestNode(graph, x, y));
-  showMarks(svg, graph, picks);
-
-  if (picks.length < 2) {
-    return say("<p>Now click the destination.</p>");
-  }
-
-  const a = aStar(graph, ...picks);
-  const d = dijkstra(graph, ...picks);
-
-  if (!a.path) {
-    return say("<p>No route between these points.</p>");
-  }
-
-  showRoute(svg, routePoints(a.path, a.edges));
-
-  say(`
-    <p>Travel time <b>${(a.cost / 60).toFixed(1)} min</b>
-    over ${a.edges.length} road segments.</p>
-
-    <p>A* expanded <b>${a.explored}</b> junctions;
-    Dijkstra expanded <b>${d.explored}</b>
-    for the same cost.</p>
-  `);
-});
-
-// Draw labels
-drawLabels(svg, graph, places);
-
-// Enable the manual label editor only in label mode
-const params = new URLSearchParams(window.location.search);
-
-if (params.get("label") === "1") {
-  enableLabelEditor(svg, places, () => {
-    drawLabels(svg, graph, places);
-  });
+if (!response.ok) {
+  throw new Error(
+    `Could not load city.json: ${response.status}`
+  );
 }
 
-say("<p>Click two points on the map.</p>");
+const city = await response.json();
+const graph = buildGraph(city);
+
+// Each simulation starts with a fresh copy.
+const fleet = structuredClone(VEHICLES);
+
+const mapEl = document.getElementById("map");
+const formEl = document.getElementById("form");
+const resultsEl = document.getElementById("results");
+const edgeEl = document.getElementById("edge-controls");
+const resetBtn = document.getElementById("reset");
+const hint = document.querySelector(".hint");
+
+let svg = null;
+let selectedEdge = null;
+let tickTimer = null;
+
+// ========================================
+// MAP PAINTING
+// ========================================
+
+function paint() {
+  if (!svg) return;
+
+  showEdgeOverrides(
+    svg,
+    graph,
+    selectedEdge
+  );
+
+  const moving = fleet.filter(
+    vehicle =>
+      vehicle.status === "dispatched" &&
+      vehicle.path
+  );
+
+  showRoutes(
+    svg,
+    moving.map(vehicle => ({
+      type: vehicle.type,
+      points: vehicle.edges?.length
+        ? routePoints(
+            vehicle.path,
+            vehicle.edges
+          )
+        : []
+    }))
+  );
+
+  showVehicles(
+    svg,
+    graph,
+    fleet.filter(
+      vehicle => vehicle.status !== "available"
+    )
+  );
+}
+
+// ========================================
+// A* VS DIJKSTRA
+// ========================================
+
+function searchNote(result) {
+  const sample = result.assignments[0];
+
+  if (!sample) return "";
+
+  const baseline = dijkstra(
+    graph,
+    sample.from,
+    sample.path.at(-1)
+  );
+
+  return `
+    For ${sample.vehicleId}, A* expanded
+    <b>${sample.explored}</b> junctions.
+    Dijkstra expanded <b>${baseline.explored}</b>.
+    Route cost: ${(sample.cost / 60).toFixed(2)} minutes.
+  `;
+}
+
+// ========================================
+// DEBUG ROUTE COSTS
+// ========================================
+
+function debugVehicles(incidentNode) {
+  console.log("Incident node:", incidentNode);
+  console.log(
+    "Incident coordinates:",
+    graph.nodes[incidentNode]
+  );
+
+  const comparisons = fleet
+    .filter(vehicle => vehicle.status === "available")
+    .map(vehicle => {
+      const result = aStar(
+        graph,
+        vehicle.node,
+        incidentNode
+      );
+
+      return {
+        vehicle: vehicle.id,
+        type: vehicle.type,
+        start: vehicle.node,
+        incident: incidentNode,
+        cost: result.cost,
+        reachable: result.path !== null,
+        pathLength: result.path?.length ?? 0
+      };
+    });
+
+  console.table(comparisons);
+}
+
+// ========================================
+// RESULTS
+// ========================================
+
+function updateResults(incident, plan, result) {
+  renderResults(
+    resultsEl,
+    incident,
+    plan,
+    result,
+    searchNote(result)
+  );
+}
+
+// ========================================
+// SIMULATION
+// ========================================
+
+function stopSimulation() {
+  if (tickTimer !== null) {
+    clearInterval(tickTimer);
+    tickTimer = null;
+  }
+}
+
+function startSimulation() {
+  stopSimulation();
+
+  tickTimer = setInterval(() => {
+    let moved = false;
+
+    for (const vehicle of fleet) {
+      if (
+        vehicle.status !== "dispatched" ||
+        !vehicle.path ||
+        vehicle.path.length < 2
+      ) {
+        continue;
+      }
+
+      vehicle.path.shift();
+
+      if (vehicle.edges?.length) {
+        vehicle.edges.shift();
+      }
+
+      vehicle.node = vehicle.path[0];
+      moved = true;
+
+      if (vehicle.path.length < 2) {
+        vehicle.status = "arrived";
+        vehicle.path = [vehicle.node];
+        vehicle.edges = [];
+      }
+    }
+
+    if (moved) paint();
+
+    const stillMoving = fleet.some(
+      vehicle => vehicle.status === "dispatched"
+    );
+
+    if (!stillMoving) {
+      stopSimulation();
+    }
+  }, 850);
+}
+
+// ========================================
+// ROAD CHANGES AND REROUTING
+// ========================================
+
+function onGraphChange(edge) {
+  showEdgeOverrides(
+    svg,
+    graph,
+    selectedEdge
+  );
+
+  for (const vehicle of fleet) {
+    if (
+      vehicle.status !== "dispatched" ||
+      !vehicle.destination
+    ) {
+      continue;
+    }
+
+    const blocked = needsReroute(
+      vehicle,
+      graph.edges
+    );
+
+    const affected =
+      edge &&
+      pathUsesEdge(vehicle.path, edge);
+
+    if (!blocked && !affected) continue;
+
+    const next = reroute(
+      graph,
+      vehicle,
+      vehicle.destination
+    );
+
+    if (!next) {
+      vehicle.status = "stuck";
+      vehicle.path = [vehicle.node];
+      vehicle.edges = [];
+
+      showRerouteEvent(
+        resultsEl,
+        vehicle.id,
+        null
+      );
+
+      continue;
+    }
+
+    vehicle.path = next.path;
+    vehicle.edges = next.edges;
+    vehicle.node = next.path[0];
+
+    showRerouteEvent(
+      resultsEl,
+      vehicle.id,
+      next.cost
+    );
+  }
+
+  paint();
+}
+
+// ========================================
+// INCIDENT REPORTING
+// ========================================
+
+renderIncidentForm(
+  formEl,
+  incident => {
+    if (!incident.node) {
+      resultsEl.innerHTML = `
+        <p>Click the map to select an incident location.</p>
+      `;
+      return;
+    }
+
+    stopSimulation();
+    resetAllVehicles(fleet);
+
+    // Compare all available vehicles before dispatch.
+    debugVehicles(incident.node);
+
+    // Infer resource requirements.
+    const plan = inferResources(incident);
+
+    // Dispatch the required vehicles.
+    const result = dispatch(
+      graph,
+      plan.needs,
+      incident.node,
+      fleet
+    );
+
+    updateResults(
+      incident,
+      plan,
+      result
+    );
+
+    showIncident(
+      svg,
+      graph,
+      incident.node
+    );
+
+    paint();
+    startSimulation();
+  }
+);
+
+// ========================================
+// MAP CREATION
+// ========================================
+
+svg = renderMap(
+  mapEl,
+  graph,
+  (x, y, event) => {
+    if (event.shiftKey) {
+      selectedEdge = nearestEdge(
+        graph,
+        x,
+        y
+      );
+
+      renderEdgeControls(
+        edgeEl,
+        selectedEdge,
+        onGraphChange
+      );
+
+      showEdgeOverrides(
+        svg,
+        graph,
+        selectedEdge
+      );
+
+      return;
+    }
+
+    const node = nearestNode(
+      graph,
+      x,
+      y
+    );
+
+    if (!node) return;
+
+    setIncidentLocation(node);
+
+    showIncident(
+      svg,
+      graph,
+      node
+    );
+  }
+);
+
+// ========================================
+// LABELS
+// ========================================
+
+// Facility labels are drawn directly from graph.facilities.
+// No labels.json file is needed.
+const places = [];
+
+drawLabels(
+  svg,
+  graph,
+  places
+);
+
+// ========================================
+// LABEL EDITOR
+// ========================================
+
+const params = new URLSearchParams(
+  window.location.search
+);
+
+if (params.get("label") === "1") {
+  enableLabelEditor(
+    svg,
+    places,
+    () => drawLabels(
+      svg,
+      graph,
+      places
+    )
+  );
+}
+
+// ========================================
+// INSTRUCTIONS
+// ========================================
+
+if (hint) {
+  hint.textContent =
+    "Click the map to pin an incident. Shift-click a road to change traffic or block it.";
+}
+
+// ========================================
+// RESET
+// ========================================
+
+resetBtn?.addEventListener(
+  "click",
+  () => {
+    stopSimulation();
+
+    resetAllVehicles(fleet);
+
+    for (const edge of graph.edges) {
+      edge.traffic = 0;
+      edge.blocked = false;
+    }
+
+    selectedEdge = null;
+    edgeEl.innerHTML = "";
+
+    setIncidentLocation(null);
+
+    showIncident(
+      svg,
+      graph,
+      null
+    );
+
+    paint();
+
+    resultsEl.innerHTML = "";
+  }
+);
+
+// ========================================
+// INITIAL DRAW
+// ========================================
+
+paint();
