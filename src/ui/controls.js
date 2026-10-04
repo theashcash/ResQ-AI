@@ -1,4 +1,3 @@
-
 // src/ui/controls.js
 // Builds the incident form. The inference engine derives severity
 // and priority from the facts collected here.
@@ -141,6 +140,7 @@ export function renderEdgeControls(container, edge, onChange) {
 
   container.querySelector("#edge-traffic").addEventListener("change", event => {
     edge.traffic = Number(event.target.value);
+    edge.userSet = true;                       // a manual setting overrides the time of day
     onChange(edge);
   });
 
@@ -148,4 +148,20 @@ export function renderEdgeControls(container, edge, onChange) {
     edge.blocked = event.target.checked;
     onChange(edge);
   });
+}
+
+
+// Segmented control on the map: Off-peak / Morning rush / Evening rush.
+export function renderTimeOfDay(host, modes, current, onChange) {
+  let box = host.querySelector(".tod");
+  if (!box) {
+    box = document.createElement("div");
+    box.className = "tod";
+    box.setAttribute("role", "group");
+    box.setAttribute("aria-label", "Time of day");
+    host.append(box);
+  }
+  box.innerHTML = `<span>Traffic</span>` + Object.entries(modes).map(([key, m]) =>
+    `<button type="button" data-mode="${key}" class="${key === current ? "on" : ""}" aria-pressed="${key === current}">${m.label}</button>`).join("");
+  box.querySelectorAll("button").forEach(b => (b.onclick = () => onChange(b.dataset.mode)));
 }

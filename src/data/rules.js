@@ -133,5 +133,17 @@ export const RULES = [
     if: f => f.priority === "CRITICAL",
     then: { police: 2 },
     why: "Critical incidents require additional police presence"
+  },
+  {
+    id: "R19",
+    if: f => f.type === "medical_emergency",
+    then: { ambulance: 1 },
+    why: "A medical emergency always receives at least one ambulance"
+  },
+  {
+    id: "R20",
+    if: f => f.type === "building_accident",
+    then: { fire_truck: 1 },
+    why: "A building accident needs a fire and rescue team for search and rescue"
   }
 ];

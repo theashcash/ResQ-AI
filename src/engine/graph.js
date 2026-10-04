@@ -58,3 +58,25 @@ export function routePoints(path, edges) {
   });
   return pts;
 }
+
+// Point a fraction (0..1) of the way along a polyline.
+export function pointAlong(pts, frac) {
+  const len = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  let want = pts.slice(1).reduce((t, p, i) => t + len(pts[i], p), 0) * Math.min(1, Math.max(0, frac));
+  for (let i = 1; i < pts.length; i++) {
+    const d = len(pts[i - 1], pts[i]);
+    if (want <= d || i === pts.length - 1) { const t = d ? want / d : 0; return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t]; }
+    want -= d;
+  }
+  return pts[0];
+}
+
+// Where a moving unit is on the map right now (along the real curve of its current road segment).
+export function unitPosition(graph, v) {
+  if (v.edges?.length) {
+    const e = v.edges[0], g = e.from === v.path[0] ? e.geometry : [...e.geometry].reverse();
+    const [x, y] = pointAlong(g, v.s / e.length);
+    return { x, y };
+  }
+  return graph.nodes[v.node];
+}

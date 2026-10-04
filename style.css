@@ -1175,3 +1175,65 @@ input[type="number"]:focus {
     gap: 10px;
     margin-top: 16px;
 }
+/* ---- Plan and Respond stages (added) ---- */
+button.primary{background:var(--ink);color:#fff;border:0;border-radius:3px;padding:10px 14px;font:600 14px var(--body);cursor:pointer;transition:background .2s,transform .15s}
+button.primary:hover:not(:disabled){background:#1b3a5a}button.primary:active:not(:disabled){transform:scale(.98)}
+button:disabled{opacity:.45;cursor:default}
+.plan-actions{display:flex;flex-direction:column;gap:12px}
+.clock{display:flex;gap:8px;flex-wrap:wrap}
+.clock button,#new-incident{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:8px 12px;font:500 13px var(--body);cursor:pointer}
+.clock button.primary{background:var(--ink);color:#fff;border:0;margin-left:auto}
+.spd.on{background:var(--ink)!important;color:#fff!important;border-color:var(--ink)!important}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tab{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:3px;padding:6px 10px;font:600 12px var(--body);cursor:pointer}
+.tab.on{border-color:var(--ink);box-shadow:inset 0 -3px 0 var(--ink)}
+.tab.ambulance{color:var(--amb)}.tab.fire_truck{color:var(--fire)}.tab.police{color:var(--pol)}
+.dot{width:7px;height:7px;border-radius:50%;background:#9aa6b5}.dot.arrived{background:#2a9d8f}.dot.stuck{background:var(--red)}
+.dot.dispatched{background:#d9822b}
+.unit-card h3{color:var(--ink);font-size:15px}
+.bar-track{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:10px 0}
+#lv-bar{height:100%;width:0;background:var(--ink);transition:width .15s linear}
+.unit-card.ambulance #lv-bar{background:var(--amb)}.unit-card.fire_truck #lv-bar{background:var(--fire)}.unit-card.police #lv-bar{background:var(--pol)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:10px 0 14px}.stats div{margin:0}
+.stats dt{font-size:12px;color:var(--mute)}.stats dd{margin:0;font:600 20px var(--head)}
+
+/* ---- Time-of-day control on the map (added) ---- */
+.tod{position:absolute;top:12px;right:16px;display:flex;align-items:center;gap:4px;background:#0d1b2acc;border:1px solid #2b415a;border-radius:4px;padding:4px 6px;z-index:2}
+.tod span{font-size:12px;color:#8fa3b8;margin:0 6px 0 4px}
+.tod button{background:none;border:0;color:#dbe6f2;border-radius:3px;padding:6px 10px;font:500 13px var(--body);cursor:pointer;transition:background .2s}
+.tod button:hover{background:#16304a}.tod button.on{background:#e6e9ee;color:#0d1b2a;font-weight:600}
+
+/* ---- Light street-map theme, unit colours that never clash with traffic, wider side panels (added) ---- */
+:root{--amb:#0a6fd6;--fire:#b81f86;--pol:#4a33d6}
+#stage{background:#e8ecf1;animation:reveal .9s ease-out both}
+#stage::before{content:none}
+.hint{color:#51627a}
+.legend{color:#34465c;background:#ffffffd9;border:1px solid #cfd6df;border-radius:4px;padding:6px 10px;left:14px;bottom:12px}
+.legend .t0{background:#fff;box-shadow:0 0 0 1px #97a5b9}.legend .t1{background:#f5a524}.legend .t2{background:#e5484d}
+.legend .bk{background:repeating-linear-gradient(90deg,#3b4252 0 3px,transparent 3px 8px)}
+#overrides .road.t1{stroke:#f5a524}#overrides .road.t2{stroke:#e5484d}
+#overrides .road.blocked{stroke:#2b3140;stroke-dasharray:2 7}
+#overrides .edge-sel{stroke:#0f172a;stroke-dasharray:none}
+.route-flow{stroke-dasharray:3 16;animation:flow .9s linear infinite;pointer-events:none}
+.tod{background:#ffffffeb;border:1px solid #cfd6df}.tod span{color:#51627a}
+.tod button{color:#1f2a3d}.tod button:hover{background:#eef2f7}.tod button.on{background:#0d1b2a;color:#fff}
+.rail{font-size:15px}
+
+/* ======== Light map theme, new colour palette, wider side panels (added) ======== */
+:root{--amb:#1456c4;--fire:#b81e8c;--pol:#4a31b8}          /* unit colours: blue / magenta / indigo; never the traffic colours */
+#app{grid-template-columns:minmax(300px,1fr) 640px minmax(340px,1fr);grid-template-rows:minmax(0,1fr)}   /* JS sets the middle width to fit the map */
+#stage{background:#e3e8ed}
+#stage::before{display:none}
+.hint,.legend{background:#ffffffe6;border:1px solid #d5dbe3;border-radius:4px;padding:6px 10px;color:#334155}
+.hint{top:12px;left:14px;max-width:46%}
+.legend{left:14px;bottom:12px}
+.legend .t0{background:#fff;border:1px solid #94a1b0;height:6px}
+.legend .t1{background:#f2a516}.legend .t2{background:#d62839}
+.legend .bk{background:repeating-linear-gradient(90deg,#1f2937 0 5px,transparent 5px 9px)}
+.tod{background:#ffffffe6;border:1px solid #d5dbe3}
+.tod span{color:#5d6b7c}.tod button{color:#0d1b2a}.tod button:hover{background:#e8edf1}.tod button.on{background:#0d1b2a;color:#fff}
+.ripple,.inc-ring{stroke:#0d1b2a}
+.route-flow{stroke-dasharray:2 14;animation:flow2 .9s linear infinite}
+@keyframes flow2{to{stroke-dashoffset:-16}}
+.vehicle circle{filter:drop-shadow(0 1px 3px rgba(13,27,42,.45))}
+@media (max-width:1000px){#app{grid-template-columns:1fr;grid-template-rows:auto}#stage{min-height:460px}.hint{max-width:none}}
